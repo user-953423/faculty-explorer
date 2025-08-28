@@ -1,217 +1,265 @@
 import streamlit as st
 import pandas as pd
-import ast
-import re
+import ast, re
 from collections import Counter
 
-# --------------------
-# Page setup
-# --------------------
+# =========================
+# Page setup + styling
+# =========================
 st.set_page_config(page_title="Babson Faculty Research Explorer", layout="wide")
-st.title("Babson Faculty Research Explorer")
 
-DATA_PATH = "faculty_keywords_and_categories.csv"
+st.markdown("""
+<style>
+/* Wider but readable page + a touch more top padding */
+.block-container { max-width: 1100px; padding-top: 1.2rem; padding-bottom: 1.6rem; }
 
+/* Softer title + subtitle spacing */
+h1 { margin-bottom: .25rem !important; letter-spacing: .2px; }
+.subtitle { color: #666; margin: 0 0 1rem 2px; }
+
+/* Toolbar pills (radios) — use theme primary color */
+div[role="radiogroup"] > label {
+  background: #f4f6f8;
+  border: 1px solid #e6e8eb;
+  border-radius: 999px;
+  padding: 4px 12px;
+  margin-right: 6px;
+  cursor: pointer;
+  transition: all .12s ease-in-out;
+  font-weight: 600;
+}
+div[role="radiogroup"] > label:hover { background: #eef2f5; }
+div[role="radiogroup"] > label[data-checked="true"] {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+}
+
+/* Compact labels */
+.stRadio > label, .stCheckbox > label, .stSelectbox > label, .stTextInput > label { font-weight: 600; }
+label { font-size: .92rem !important; }
+
+/* Cards for faculty list */
+.faculty-card {
+  padding: 10px 12px;
+  margin: 6px 0;
+  border-radius: 10px;
+  background: #fafbfc;
+  border: 1px solid #edf0f3;
+}
+.faculty-card strong { font-weight: 700; }
+.faculty-card small { color: #6b7280; }
+
+/* Reduce vertical gaps between stacked widgets */
+div[data-testid="stVerticalBlock"] > div:has(> label) { margin-bottom: .35rem; }
+
+/* Section headers tighter */
+h3 { margin-top: .6rem !important; }
+</style>
+""", unsafe_allow_html=True)
+
+st.header("Babson Faculty Research Interest Explorer")
+st.markdown(
+    '<div class="subtitle">Explore faculty by topic or person. Use keywords, categories, profile interests, or all combined.</div>',
+    unsafe_allow_html=True
+)
+
+DATA_PATH = "faculty_research_mapping_source.csv"
+
+# =========================
+# Helpers
+# =========================
+def parse_listish(value, split_chars=",;"):
+    """Accept comma/semicolon lists or python-list strings (robust to earlier exports)."""
+    if pd.isna(value):
+        return []
+    if isinstance(value, list):
+        return [str(x).strip() for x in value if str(x).strip()]
+    s = str(value).strip()
+    if s.startswith("[") and s.endswith("]"):
+        try:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, list):
+                return [str(x).strip() for x in parsed if str(x).strip()]
+        except Exception:
+            pass
+    parts = re.split(rf"\s*[{re.escape(split_chars)}]\s*", s)
+    return [p for p in (x.strip() for x in parts) if p]
+
+def get_row_topics(source: str, row: pd.Series):
+    if source == "Profile":
+        return row["Profile_list"]
+    if source == "Categories":
+        return row["Categories_list"]
+    if source == "Keywords":
+        return row["Keywords_list"]
+    # "All"
+    return sorted(set(row["Profile_list"]) | set(row["Categories_list"]) | set(row["Keywords_list"]))
+
+# =========================
+# Data loading
+# =========================
 @st.cache_data(show_spinner=False)
 def load_data(path: str) -> pd.DataFrame:
-    # Be forgiving on encodings
+    df = None
+    last_err = None
     for enc in ("utf-8-sig", "utf-8", "latin1"):
         try:
             df = pd.read_csv(path, encoding=enc)
             break
-        except Exception:
-            continue
-    else:
+        except Exception as e:
+            last_err = e
+    if df is None:
+        st.error(f"Unable to read CSV at {path}. Last error: {last_err}")
         st.stop()
 
-    # Normalize expected columns
-    expected = {"Faculty Name", "Categories", "All Keywords"}
+    expected = {"Faculty Name", "Profile Interests", "Categories", "All Keywords"}
     missing = expected - set(df.columns)
     if missing:
-        st.error(f"Missing columns in CSV: {', '.join(missing)}")
+        st.error(f"CSV missing required columns: {', '.join(sorted(missing))}")
         st.stop()
 
-    # Normalizers handle either comma-separated strings OR Python list strings
-    def parse_listish(value, split_chars=","):
-        if pd.isna(value):
-            return []
-        if isinstance(value, list):
-            return [x.strip() for x in value if str(x).strip()]
-        s = str(value).strip()
-        # Try to parse a Python list string like "['A', 'B']"
-        if s.startswith("[") and s.endswith("]"):
-            try:
-                parsed = ast.literal_eval(s)
-                return [str(x).strip() for x in parsed if str(x).strip()]
-            except Exception:
-                pass
-        # Fallback: split on the provided separators
-        parts = re.split(rf"\s*[{re.escape(split_chars)};]\s*", s)
-        return [p for p in (x.strip() for x in parts) if p]
+    # Parse to lists (works on already-clean comma-separated strings)
+    df["Profile_list"]    = df["Profile Interests"].apply(parse_listish)
+    df["Categories_list"] = df["Categories"].apply(parse_listish)
+    df["Keywords_list"]   = df["All Keywords"].apply(parse_listish)
 
-    df["Categories_list"] = df["Categories"].apply(lambda v: parse_listish(v, split_chars=","))
-
-    # All Keywords may be separated by semicolons or commas in your file
-    df["Keywords_list"] = df["All Keywords"].apply(lambda v: parse_listish(v, split_chars=";,"))
-    # Deduplicate within a person
-    df["Categories_list"] = df["Categories_list"].apply(lambda xs: sorted(set(xs), key=str.lower))
-    df["Keywords_list"] = df["Keywords_list"].apply(lambda xs: sorted(set(xs), key=str.lower))
-
-    # For display / search convenience
+    # For display
+    df["Profile_display"]    = df["Profile_list"].apply(lambda xs: ", ".join(xs))
     df["Categories_display"] = df["Categories_list"].apply(lambda xs: ", ".join(xs))
-    df["Keywords_display"]  = df["Keywords_list"].apply(lambda xs: ", ".join(xs))
-
+    df["Keywords_display"]   = df["Keywords_list"].apply(lambda xs: ", ".join(xs))
     return df
 
 df = load_data(DATA_PATH)
 
-# --------------------
-# Sidebar filters
-# --------------------
-st.sidebar.header("Filters")
+# =========================
+# Tabs
+# =========================
+tab_topic, tab_faculty = st.tabs(["By Topic", "By Faculty Member"])
 
-# Category universe (sorted by frequency then alpha)
-all_cats = [c for xs in df["Categories_list"] for c in xs]
-cat_counts = Counter(all_cats)
-sorted_cats = [c for c, _ in sorted(cat_counts.items(), key=lambda x: (-x[1], x[0].lower()))]
-
-# Keyword universe (optional browse list; free text search is primary)
-all_keywords = [k for xs in df["Keywords_list"] for k in xs]
-kw_counts = Counter(all_keywords)
-sorted_kws = [k for k, _ in sorted(kw_counts.items(), key=lambda x: (-x[1], x[0].lower()))]
-
-filter_mode = st.sidebar.radio(
-    "Explore mode",
-    ["By Category", "By Keyword", "Combined (Category + Keyword)"],
-    index=0
-)
-
-if filter_mode in ("By Category", "Combined (Category + Keyword)"):
-    selected_categories = st.sidebar.multiselect(
-        "Categories",
-        options=sorted_cats,
-        default=[],
-        help="Select one or more categories to filter faculty."
-    )
-else:
-    selected_categories = []
-
-if filter_mode in ("By Keyword", "Combined (Category + Keyword)"):
-    keyword_query = st.sidebar.text_input(
-        "Keyword search",
-        value="",
-        placeholder="e.g., retail, supply chain, behavioral finance…"
-    ).strip()
-else:
-    keyword_query = ""
-
-exact_keyword_match = st.sidebar.checkbox(
-    "Exact keyword match",
-    value=False,
-    help="When on, matches must equal a full keyword; when off, partial substring matches are allowed."
-)
-
-hide_singletons = st.sidebar.checkbox(
-    "Hide keywords with only one faculty (counts list & suggestions)",
-    value=False
-)
-
-# --------------------
-# Filtering logic
-# --------------------
-def match_categories(row) -> bool:
-    if not selected_categories:
-        return True
-    row_cats = set(row["Categories_list"])
-    # Faculty passes if they have ANY of the selected categories
-    return bool(row_cats.intersection(selected_categories))
-
-def match_keywords(row) -> bool:
-    if not keyword_query:
-        return True
-    query = keyword_query.lower()
-    # Exact match searches within discrete keyword tokens
-    if exact_keyword_match:
-        return any(k.lower() == query for k in row["Keywords_list"])
-    # Substring: check any keyword contains the query
-    return any(query in k.lower() for k in row["Keywords_list"])
-
-mask = df.apply(lambda r: match_categories(r) and match_keywords(r), axis=1)
-filtered = df[mask].copy()
-
-# --------------------
-# Header metrics
-# --------------------
-colA, colB, colC, colD = st.columns(4)
-colA.metric("Faculty (filtered)", f"{len(filtered):,}")
-colB.metric("Total Categories", f"{len(cat_counts):,}")
-colC.metric("Total Keywords", f"{len(kw_counts):,}")
-colD.metric("CSV Rows", f"{len(df):,}")
-
-# --------------------
-# Suggested facets (left column) + Results (right)
-# --------------------
-left, right = st.columns([1, 2], gap="large")
-
-with left:
-    st.subheader("Top Categories")
-    counts_view = cat_counts.copy()
-    # Show top categories overall or within current keyword filter
-    if keyword_query:
-        # Recompute cat counts based on keyword filter only
-        subset = df[df.apply(match_keywords, axis=1)]
-        counts_view = Counter([c for xs in subset["Categories_list"] for c in xs])
-    top_cats = sorted(counts_view.items(), key=lambda x: (-x[1], x[0].lower()))
-    if hide_singletons:
-        top_cats = [(c, n) for c, n in top_cats if n > 1]
-    if top_cats:
-        st.write("\n".join([f"- **{c}** ({n})" for c, n in top_cats[:30]]))
-    else:
-        st.caption("_No categories to show._")
-
-    st.subheader("Top Keywords")
-    kw_view = kw_counts.copy()
-    if selected_categories:
-        # Recompute keyword counts based on category filter only
-        subset = df[df.apply(match_categories, axis=1)]
-        kw_view = Counter([k for xs in subset["Keywords_list"] for k in xs])
-    top_kws = sorted(kw_view.items(), key=lambda x: (-x[1], x[0].lower()))
-    if hide_singletons:
-        top_kws = [(k, n) for k, n in top_kws if n > 1]
-    if top_kws:
-        st.write("\n".join([f"- **{k}** ({n})" for k, n in top_kws[:50]]))
-    else:
-        st.caption("_No keywords to show._")
-
-with right:
-    st.subheader("Results")
-    if filtered.empty:
-        st.info("No matches. Try removing some filters or toggling exact match.")
-    else:
-        # Nice, compact view
-        show_cols = ["Faculty Name", "Categories_display", "Keywords_display"]
-        renamed = filtered[show_cols].rename(columns={
-            "Faculty Name": "Faculty",
-            "Categories_display": "Categories",
-            "Keywords_display": "All Keywords"
-        })
-        st.dataframe(
-            renamed,
-            use_container_width=True,
-            hide_index=True
+# =========================
+# BY TOPIC
+# =========================
+with tab_topic:
+    # Toolbar — single row
+    c1, c2, c3, c4 = st.columns([2.6, 1.2, 1.2, 2.0])
+    with c1:
+        source = st.radio(
+            "Source",
+            ["Profile", "Categories", "Keywords", "All"],
+            index=2,  # default to Keywords
+            horizontal=True,
+            help=(
+                "Profile Interests → Sourced from Digital Measures.\n"
+                "Categories, Keywords → AI-Generated Summary based on Faculty Page."
+            ),
         )
+    with c2:
+        sort_mode = st.radio("Sort", ["Count", "Alphabetical"], index=0, horizontal=True)
+    with c3:
+        hide_singletons = st.checkbox("Hide singles", value=True, help="Hide topics with only one faculty")
+    with c4:
+        topic_search = st.text_input("Search", "", placeholder="Filter topics…").strip().lower()
 
-        # Download filtered set
-        csv_bytes = renamed.to_csv(index=False).encode("utf-8")
+    # Build topic universe & counts
+    topic_series = df.apply(lambda r: get_row_topics(source, r), axis=1)
+    all_topics = [t for topics in topic_series for t in topics]
+    counts = Counter([t for t in all_topics if topic_search in t.lower()])
+
+    items = list(counts.items())
+    if sort_mode == "Count":
+        items = sorted(items, key=lambda x: (-x[1], x[0].lower()))
+    else:
+        items = sorted(items, key=lambda x: x[0].lower())
+    if hide_singletons:
+        items = [(t, n) for t, n in items if n > 1]
+
+    # Topic selector
+    topic_labels = [f"{t} ({n})" for t, n in items]
+    lookup = {f"{t} ({n})": t for t, n in items}
+
+    if topic_labels:
+        selected_label = st.selectbox("Topic", topic_labels, key="topic_select")
+        selected_topic = lookup[selected_label]
+
+        # Matches
+        matches_mask = topic_series.apply(lambda xs: selected_topic in xs)
+        matches = df[matches_mask]
+
+        st.subheader(f"Faculty for: _{selected_topic}_")
+        if matches.empty:
+            st.info("No faculty found.")
+        else:
+            for _, r in matches.sort_values("Faculty Name").iterrows():
+                st.markdown(f"""
+<div class="faculty-card">
+  <strong>{r['Faculty Name']}</strong><br>
+  <small>{r['Categories_display']}</small>
+</div>
+""", unsafe_allow_html=True)
+
+            # Download filtered results
+            out = matches[["Faculty Name", "Profile_display", "Categories_display", "Keywords_display"]].rename(
+                columns={
+                    "Faculty Name": "Faculty",
+                    "Profile_display": "Profile Interests",
+                    "Categories_display": "Categories",
+                    "Keywords_display": "All Keywords",
+                }
+            )
+            st.download_button(
+                "Download these results (CSV)",
+                data=out.to_csv(index=False).encode("utf-8"),
+                file_name="faculty_filtered_by_topic.csv",
+                mime="text/csv",
+            )
+    else:
+        st.info("No topics to display. Try clearing the search or toggling options.")
+
+# =========================
+# BY FACULTY
+# =========================
+with tab_faculty:
+    f1, _ = st.columns([2, 3])
+    with f1:
+        f_search = st.text_input("Search faculty", "", placeholder="Name contains…").strip().lower()
+
+    fac_list = df["Faculty Name"].tolist()
+    if f_search:
+        fac_list = [n for n in fac_list if f_search in n.lower()]
+    fac_list = sorted(fac_list, key=str.lower)
+
+    if not fac_list:
+        st.info("No matching faculty. Clear the search to see all.")
+    else:
+        selected_faculty = st.selectbox("Faculty", fac_list, key="faculty_select")
+        row = df[df["Faculty Name"] == selected_faculty].iloc[0]
+
+        st.subheader(selected_faculty)
+        st.markdown("**Profile Interests**")
+        st.markdown(row["Profile_display"] or "_None_")
+        st.markdown("**Categories**")
+        st.markdown(row["Categories_display"] or "_None_")
+        st.markdown("**All Keywords**")
+        st.markdown(row["Keywords_display"] or "_None_")
+
+        # Download single record
+        out = pd.DataFrame([{
+            "Faculty": selected_faculty,
+            "Profile Interests": row["Profile_display"],
+            "Categories": row["Categories_display"],
+            "All Keywords": row["Keywords_display"],
+        }])
         st.download_button(
-            "Download filtered results (CSV)",
-            data=csv_bytes,
-            file_name="faculty_filtered.csv",
-            mime="text/csv"
+            "Download this faculty (CSV)",
+            data=out.to_csv(index=False).encode("utf-8"),
+            file_name=f"{selected_faculty.replace(' ', '_')}_record.csv",
+            mime="text/csv",
         )
 
-# --------------------
-# Footnotes
-# --------------------
-st.caption("Tip: Use **Combined** mode to filter by Categories and refine with a keyword at the same time. "
-           "Partial matches are allowed unless you toggle **Exact keyword match**.")
+# =========================
+# Footnote
+# =========================
+st.markdown("---")
+st.caption("**Data sources:** Profile Interests → *Sourced from Digital Measures*. "
+           "Categories, Keywords → *AI-Generated Summary based on Faculty Page*.")
