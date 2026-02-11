@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import ast, re
 from collections import Counter
+import streamlit.components.v1 as components
 
 # =========================
 # Page setup + styling
@@ -71,7 +72,7 @@ html, body, [class*="css"] {
 
 /* ——— Hide default Streamlit header (we use the brand bar) ——— */
 header[data-testid="stHeader"] {
-  display: none !important;
+  background: var(--babson-green) !important;
 }
 
 /* ——— Headings ——— */
@@ -232,6 +233,10 @@ div[data-testid="stVerticalBlock"] > div:has(> label) { margin-bottom: .35rem; }
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize session state for chat visibility
+if 'show_chat' not in st.session_state:
+    st.session_state.show_chat = False
+
 # ——— Brand header bar ———
 st.markdown("""
 <div class="brand-bar">
@@ -309,6 +314,195 @@ def load_data(path: str) -> pd.DataFrame:
 df = load_data(DATA_PATH)
 
 # =========================
+# Copilot Chat Widget
+# =========================
+copilot_widget = """
+<div id="copilot-chat-container">
+    <!-- Floating chat button -->
+    <button id="chat-toggle-btn" onclick="toggleChat()" aria-label="Toggle Research Assistant">
+        <span id="chat-icon">💬</span>
+        <span id="close-icon" style="display: none;">✕</span>
+    </button>
+    
+    <!-- Chat window -->
+    <div id="chat-window" style="display: none;">
+        <div id="chat-header">
+            <div>
+                <div id="chat-title">Research Assistant</div>
+                <div id="chat-subtitle">Ask about faculty research & collaborations</div>
+            </div>
+            <button id="chat-close-btn" onclick="toggleChat()" aria-label="Close chat">✕</button>
+        </div>
+        <div id="chat-body">
+            <iframe 
+                src="https://copilotstudio.microsoft.com/environments/Default-e83d2ad7-3bcd-4d5c-9d6c-6ffa1a4434bf/bots/copilots_header_c9faf/webchat?__version__=2" 
+                frameborder="0" 
+                style="width: 100%; height: 100%; border: none;">
+            </iframe>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Chat container */
+#copilot-chat-container {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    z-index: 9999;
+    font-family: 'Zilla Slab', Georgia, serif;
+}
+
+/* Floating toggle button */
+#chat-toggle-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #006644;
+    border: none;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,102,68,.35);
+    transition: all .25s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+#chat-toggle-btn:hover {
+    background: #004d33;
+    transform: scale(1.08);
+    box-shadow: 0 6px 20px rgba(0,102,68,.5);
+}
+
+/* Chat window */
+#chat-window {
+    position: fixed;
+    bottom: 100px;
+    right: 24px;
+    width: 400px;
+    height: 600px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideUp 0.3s ease-out;
+    border: 2px solid #EEAF00;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Chat header */
+#chat-header {
+    background: #006644;
+    color: white;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid #EEAF00;
+}
+
+#chat-title {
+    font-family: 'Oswald', 'Arial Narrow', sans-serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+}
+
+#chat-subtitle {
+    font-size: .8rem;
+    color: rgba(255,255,255,.8);
+    margin-top: 2px;
+    font-weight: 300;
+}
+
+#chat-close-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 4px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background .2s;
+}
+
+#chat-close-btn:hover {
+    background: rgba(255,255,255,.15);
+}
+
+/* Chat body */
+#chat-body {
+    flex: 1;
+    overflow: hidden;
+    background: #fafbfc;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    #chat-window {
+        width: calc(100vw - 32px);
+        height: calc(100vh - 140px);
+        right: 16px;
+        bottom: 90px;
+    }
+    
+    #chat-toggle-btn {
+        bottom: 16px;
+        right: 16px;
+    }
+}
+</style>
+
+<script>
+function toggleChat() {
+    const chatWindow = document.getElementById('chat-window');
+    const chatIcon = document.getElementById('chat-icon');
+    const closeIcon = document.getElementById('close-icon');
+    const toggleBtn = document.getElementById('chat-toggle-btn');
+    
+    if (chatWindow.style.display === 'none' || chatWindow.style.display === '') {
+        chatWindow.style.display = 'flex';
+        chatIcon.style.display = 'none';
+        closeIcon.style.display = 'block';
+        toggleBtn.style.background = '#004d33';
+    } else {
+        chatWindow.style.display = 'none';
+        chatIcon.style.display = 'block';
+        closeIcon.style.display = 'none';
+        toggleBtn.style.background = '#006644';
+    }
+}
+</script>
+"""
+
+# Inject the chat widget
+components.html(copilot_widget, height=0)
+
+# =========================
 # Tabs
 # =========================
 tab_topic, tab_faculty = st.tabs(["By Topic", "By Faculty Member"])
@@ -331,7 +525,7 @@ with tab_topic:
             ),
         )
     with c2:
-        sort_mode = st.radio("Sort", ["Count", "A–Z"], index=0, horizontal=True)
+        sort_mode = st.radio("Sort", ["Count", "Alphabetical"], index=0, horizontal=True)
     with c3:
         hide_singletons = st.checkbox("Hide singles", value=True, help="Hide topics with only one faculty")
     with c4:
@@ -439,4 +633,3 @@ with tab_faculty:
 st.markdown("---")
 st.caption("**Data sources:** Profile Interests → *Sourced from Digital Measures*. "
            "Categories, Keywords → *AI-Generated Summary based on Faculty Page*.")
-
