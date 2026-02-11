@@ -229,6 +229,96 @@ div[data-testid="stVerticalBlock"] > div:has(> label) { margin-bottom: .35rem; }
 
 /* ——— Bold text uses brand green ——— */
 .stMarkdown strong { color: var(--babson-green-dark); }
+
+/* ——— Floating Chat Widget ——— */
+.chat-fab {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 99999;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #006644;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.chat-fab:hover {
+  background: #004d33;
+  transform: scale(1.07);
+  box-shadow: 0 6px 20px rgba(0,0,0,.3);
+}
+.chat-fab.open { display: none; }
+
+.chat-panel {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 99999;
+  width: 400px;
+  height: 560px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,.22);
+  display: none;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e4e7eb;
+}
+.chat-panel.open { display: flex; }
+
+.chat-panel-header {
+  background: #006644;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 3px solid #EEAF00;
+  flex-shrink: 0;
+}
+.chat-panel-header .chat-title {
+  font-family: 'Oswald', 'Arial Narrow', sans-serif;
+  font-weight: 600;
+  font-size: .95rem;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin: 0;
+}
+.chat-panel-header .chat-subtitle {
+  font-family: 'Zilla Slab', Georgia, serif;
+  font-size: .72rem;
+  color: rgba(255,255,255,.7);
+  margin: 2px 0 0 0;
+}
+.chat-panel-close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.8);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 0 0 12px;
+  line-height: 1;
+  transition: color .12s ease;
+}
+.chat-panel-close:hover { color: #fff; }
+
+.chat-panel-body {
+  flex: 1;
+  min-height: 0;
+}
+.chat-panel-body iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -237,6 +327,28 @@ st.markdown("""
 <div class="brand-bar">
   <h1>Babson Faculty Research Interest Explorer</h1>
   <div class="subtitle">Explore faculty by topic or person. Use keywords, categories, profile interests, or all combined.</div>
+</div>
+""", unsafe_allow_html=True)
+
+# ——— Floating Chat Widget ———
+COPILOT_IFRAME_URL = "https://copilotstudio.microsoft.com/environments/Default-e83d2ad7-3bcd-4d5c-9d6c-6ffa1a4434bf/bots/copilots_header_c9faf/webchat?__version__=2"
+
+st.markdown(f"""
+<button class="chat-fab" id="chatFab" onclick="document.getElementById('chatPanel').classList.add('open'); this.classList.add('open');" title="Ask the Research Assistant">
+  &#x1F4AC;
+</button>
+
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-panel-header">
+    <div>
+      <div class="chat-title">Research Assistant</div>
+      <div class="chat-subtitle">Ask about faculty expertise &amp; research</div>
+    </div>
+    <button class="chat-panel-close" onclick="document.getElementById('chatPanel').classList.remove('open'); document.getElementById('chatFab').classList.remove('open');" title="Close">&#x2715;</button>
+  </div>
+  <div class="chat-panel-body">
+    <iframe src="{COPILOT_IFRAME_URL}" allow="microphone;"></iframe>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -439,5 +551,3 @@ with tab_faculty:
 st.markdown("---")
 st.caption("**Data sources:** Profile Interests → *Sourced from Digital Measures*. "
            "Categories, Keywords → *AI-Generated Summary based on Faculty Page*.")
-
-
