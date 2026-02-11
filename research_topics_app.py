@@ -71,7 +71,7 @@ html, body, [class*="css"] {
 
 /* ——— Hide default Streamlit header (we use the brand bar) ——— */
 header[data-testid="stHeader"] {
-  background: var(--babson-green) !important;
+  display: none !important;
 }
 
 /* ——— Headings ——— */
@@ -331,7 +331,7 @@ with tab_topic:
             ),
         )
     with c2:
-        sort_mode = st.radio("Sort", ["Count", "Alphabetical"], index=0, horizontal=True)
+        sort_mode = st.radio("Sort", ["Count", "A–Z"], index=0, horizontal=True)
     with c3:
         hide_singletons = st.checkbox("Hide singles", value=True, help="Hide topics with only one faculty")
     with c4:
