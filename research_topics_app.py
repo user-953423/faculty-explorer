@@ -374,7 +374,7 @@ with col_chat:
         <iframe src="{COPILOT_IFRAME_URL}" allow="microphone;"></iframe>
       </div>
     </div>
-    """, height=650)
+    """, height=1000)
 
 with col_main:
     # =========================
@@ -506,3 +506,4 @@ with col_main:
     st.markdown("---")
     st.caption("**Data sources:** Profile Interests → *Sourced from Digital Measures*. "
                "Categories, Keywords → *AI-Generated Summary based on Faculty Page*.")
+
