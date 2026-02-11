@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import ast, re
 from collections import Counter
-import streamlit.components.v1 as components
 
 # =========================
 # Page setup + styling
@@ -72,7 +71,7 @@ html, body, [class*="css"] {
 
 /* ——— Hide default Streamlit header (we use the brand bar) ——— */
 header[data-testid="stHeader"] {
-  background: var(--babson-green) !important;
+  display: none !important;
 }
 
 /* ——— Headings ——— */
@@ -230,38 +229,8 @@ div[data-testid="stVerticalBlock"] > div:has(> label) { margin-bottom: .35rem; }
 
 /* ——— Bold text uses brand green ——— */
 .stMarkdown strong { color: var(--babson-green-dark); }
-
-/* ——— Floating chat button ——— */
-.floating-chat-button {
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  z-index: 9999;
-  background: var(--babson-green);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 64px;
-  height: 64px;
-  font-size: 28px;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0,102,68,.35);
-  transition: all .2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.floating-chat-button:hover {
-  background: var(--babson-green-dark);
-  transform: scale(1.08);
-  box-shadow: 0 6px 20px rgba(0,102,68,.45);
-}
 </style>
 """, unsafe_allow_html=True)
-
-# Initialize session state for chat visibility
-if 'show_chat' not in st.session_state:
-    st.session_state.show_chat = False
 
 # ——— Brand header bar ———
 st.markdown("""
@@ -340,35 +309,6 @@ def load_data(path: str) -> pd.DataFrame:
 df = load_data(DATA_PATH)
 
 # =========================
-# Floating Chat Button
-# =========================
-# Create columns for button placement
-col1, col2 = st.columns([6, 1])
-with col2:
-    if st.button("💬", key="chat_toggle", help="Ask the Research Assistant"):
-        st.session_state.show_chat = not st.session_state.show_chat
-
-# Show chat in sidebar when toggled
-if st.session_state.show_chat:
-    with st.sidebar:
-        st.markdown("### 🤖 Research Assistant")
-        st.markdown("Ask questions about faculty research interests, find collaborators, or get recommendations.")
-        
-        if st.button("✕ Close", key="close_chat"):
-            st.session_state.show_chat = False
-            st.rerun()
-        
-        # Embed the Copilot Studio chatbot
-        copilot_html = """
-        <iframe 
-            src="https://copilotstudio.microsoft.com/environments/Default-e83d2ad7-3bcd-4d5c-9d6c-6ffa1a4434bf/bots/copilots_header_c9faf/webchat?__version__=2" 
-            frameborder="0" 
-            style="width: 100%; height: 500px; border: 1px solid #e4e7eb; border-radius: 8px;">
-        </iframe>
-        """
-        components.html(copilot_html, height=520)
-
-# =========================
 # Tabs
 # =========================
 tab_topic, tab_faculty = st.tabs(["By Topic", "By Faculty Member"])
@@ -391,7 +331,7 @@ with tab_topic:
             ),
         )
     with c2:
-        sort_mode = st.radio("Sort", ["Count", "Alphabetical"], index=0, horizontal=True)
+        sort_mode = st.radio("Sort", ["Count", "A–Z"], index=0, horizontal=True)
     with c3:
         hide_singletons = st.checkbox("Hide singles", value=True, help="Hide topics with only one faculty")
     with c4:
@@ -499,3 +439,4 @@ with tab_faculty:
 st.markdown("---")
 st.caption("**Data sources:** Profile Interests → *Sourced from Digital Measures*. "
            "Categories, Keywords → *AI-Generated Summary based on Faculty Page*.")
+
