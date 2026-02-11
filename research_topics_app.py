@@ -326,7 +326,7 @@ with col_chat:
       body {{ background: transparent; }}
       .chat-wrapper {{
         width: 100%;
-        height: 100%;
+        height: 980px;
         border-radius: 10px;
         overflow: hidden;
         box-shadow: 0 4px 20px rgba(0,0,0,.12);
@@ -506,4 +506,5 @@ with col_main:
     st.markdown("---")
     st.caption("**Data sources:** Profile Interests → *Sourced from Digital Measures*. "
                "Categories, Keywords → *AI-Generated Summary based on Faculty Page*.")
+
 
