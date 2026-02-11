@@ -392,7 +392,7 @@ with col_main:
             source = st.radio(
                 "Source",
                 ["Profile", "Categories", "Keywords", "All"],
-                index=2,  # default to Keywords
+                index=0,  # default to Keywords
                 horizontal=True,
                 help=(
                     "Profile Interests → Sourced from Digital Measures.\n"
@@ -402,7 +402,7 @@ with col_main:
         with c2:
             sort_mode = st.radio("Sort", ["Count", "A–Z"], index=0, horizontal=True)
         with c3:
-            hide_singletons = st.checkbox("Hide singles", value=True, help="Hide topics with only one faculty")
+            hide_singletons = st.checkbox("Hide singles", value=False, help="Hide topics with only one faculty")
         with c4:
             topic_search = st.text_input("Search", "", placeholder="Filter topics…").strip().lower()
 
@@ -506,6 +506,7 @@ with col_main:
     st.markdown("---")
     st.caption("**Data sources:** Profile Interests → *Sourced from Digital Measures*. "
                "Categories, Keywords → *AI-Generated Summary based on Faculty Page*.")
+
 
 
 
